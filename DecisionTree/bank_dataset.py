@@ -3,7 +3,6 @@ import numpy as np
 from decision_tree import initiate_decision_tree, calculate_error_rate, split_criteria, convert_num_feature
 
 def handle_unknowns(data_set):
-    """Replace 'unknown' values with the mode of the column."""
     for column in data_set.columns:
         if data_set[column].dtype == object:  # Only process categorical columns
             mode_value = data_set[column].mode()[0]  # Find the most frequent value
