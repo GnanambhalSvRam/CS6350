@@ -1,51 +1,84 @@
-import pandas as pd
+import csv
 import numpy as np
-from decision_tree import initiate_decision_tree, calculate_error_rate, split_criteria, convert_num_feature
+from decision_tree import DecisionTree
+from collections import Counter
 
-def handle_unknowns(data_set):
-    for column in data_set.columns:
-        if data_set[column].dtype == object:  # Only process categorical columns
-            mode_value = data_set[column].mode()[0]  # Find the most frequent value
-            data_set[column].replace('unknown', mode_value, inplace=True)
-    return data_set
+majority_value = []
 
-if __name__ == '__main__':
-    # Define the columns and load the data
-    bank_columns = ["age", "job", "marital", "education", "default", "balance", 
-                    "housing", "loan", "contact", "day", "month", "duration", 
-                    "campaign", "pdays", "previous", "poutcome", "class"]
+def load_data(file_path, handle_missing=False):
+    data = []
+    labels = []
+    with open(file_path, 'r') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            data.append(row[:-1])
+            labels.append(row[-1])
     
-    bank_num_columns = ["age", "balance", "day", "duration", "campaign", "pdays", "previous"]
-    label_bank = ["yes", "no"]
+    if handle_missing:
+        fill_missing_values(data)  
     
-    train_data_bank = pd.read_csv("./bank/train.csv", names=bank_columns, header=None)
-    test_data_bank = pd.read_csv("./bank/test.csv", names=bank_columns, header=None)
+    return data, labels
+
+
+def fill_missing_values(data):
+    global majority_value
+    majority_value = [Counter([row[i] for row in data if row[i] != 'unknown']).most_common(1)[0][0] for i in range(len(data[0]))]
     
-    # Part 1: Handle 'unknown' as a specific attribute value
-    train_data_bank_known = convert_num_feature(train_data_bank.copy(), bank_num_columns)
-    test_data_bank_known = convert_num_feature(test_data_bank.copy(), bank_num_columns)
+    for row in data:
+        for i in range(len(row)):
+            if row[i] == 'unknown':
+                row[i] = majority_value[i]
+
+
+def convert_to_binary(data, numeric_indices):
+    for i in numeric_indices:
+        column_values = [float(row[i]) for row in data if row[i] != 'unknown']
+        median = np.median(column_values)
+        for row in data:
+            if row[i] != 'unknown':
+                row[i] = '1' if float(row[i]) > median else '0'
+            else:
+                row[i] = '1' if majority_value[i] > median else '0'  
+    return data
+
+
+def evaluate_decision_tree_bank(max_depth, heuristic, handle_missing=False):
+    train_data, train_labels = load_data('bank/train.csv', handle_missing)
+    test_data, test_labels = load_data('bank/test.csv', handle_missing)
     
-    print("Results with 'unknown' as a specific value:")
-    print("Method        Depth    Test Error      Train Error")
-    for method in split_criteria:
+    numeric_indices = [0, 5, 9, 11, 12, 13, 14]
+    if handle_missing:
+        fill_missing_values(train_data)  
+        
+    train_data = convert_to_binary(train_data, numeric_indices)
+    test_data = convert_to_binary(test_data, numeric_indices)
+    
+    dt = DecisionTree(max_depth=max_depth, heuristic=heuristic)
+    dt.fit(train_data, train_labels)
+    
+    train_predictions = dt.predict(train_data)
+    test_predictions = dt.predict(test_data)
+    
+    train_error = sum([1 for i in range(len(train_labels)) if train_labels[i] != train_predictions[i]]) / len(train_labels)
+    test_error = sum([1 for i in range(len(test_labels)) if test_labels[i] != test_predictions[i]]) / len(test_labels)
+    
+    return train_error, test_error
+
+if __name__ == "__main__":
+    # Question 3a: Treat 'unknown' as a valid value
+    print("Question 3a: Treating 'unknown' as valid value")
+    print("Heuristic | Depth | Train Error | Test Error")
+    print("-------------------------------------------")
+    for heuristic in ['information_gain', 'gini_index', 'majority_error']:
         for depth in range(1, 17):
-            decision_tree = initiate_decision_tree(train_data_bank_known, "class", label_bank, depth, method)
-            test_error = calculate_error_rate(decision_tree, test_data_bank_known, 'class')
-            train_error = calculate_error_rate(decision_tree, train_data_bank_known, 'class')
-            print(f"{method:<10}{depth:<10}{test_error:<15.5f}{train_error:<15.5f}")
+            train_err, test_err = evaluate_decision_tree_bank(depth, heuristic)
+            print(f"{heuristic: <12} | {depth: <5} | {train_err: <12.4f} | {test_err: <10.4f}")
     
-    # Part 2: Handle 'unknown' as missing value
-    train_data_bank_unknown = handle_unknowns(train_data_bank.copy())
-    test_data_bank_unknown = handle_unknowns(test_data_bank.copy())
-
-    train_data_bank_unknown = convert_num_feature(train_data_bank_unknown, bank_num_columns)
-    test_data_bank_unknown = convert_num_feature(test_data_bank_unknown, bank_num_columns)
-
-    print("\nResults with 'unknown' as a missing value:")
-    print("Method        Depth    Test Error      Train Error")
-    for method in split_criteria:
+    # Question 3b: Treat 'unknown' as missing value
+    print("\nQuestion 3b: Treating 'unknown' as missing value")
+    print("Heuristic | Depth | Train Error | Test Error")
+    print("-------------------------------------------")
+    for heuristic in ['information_gain', 'gini_index', 'majority_error']:
         for depth in range(1, 17):
-            decision_tree = initiate_decision_tree(train_data_bank_unknown, "class", label_bank, depth, method)
-            test_error = calculate_error_rate(decision_tree, test_data_bank_unknown, 'class')
-            train_error = calculate_error_rate(decision_tree, train_data_bank_unknown, 'class')
-            print(f"{method:<10}{depth:<10}{test_error:<15.5f}{train_error:<15.5f}")
+            train_err, test_err = evaluate_decision_tree_bank(depth, heuristic, handle_missing=True)
+            print(f"{heuristic: <12} | {depth: <5} | {train_err: <12.4f} | {test_err: <10.4f}")
