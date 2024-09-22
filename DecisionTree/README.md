@@ -12,6 +12,7 @@ This repository contains implementations of a decision tree learning algorithm f
 - `bank/train.csv`: Training dataset for the bank marketing task (5,000 examples).
 - `bank/test.csv`: Test dataset for the bank marketing task (5,000 examples).
 - `data-desc.txt`: Descriptions of the attributes used in both datasets.
+- `MachineLearning_Homework_1.pdf`: The report for this homework
 
 ## Requirements
 
